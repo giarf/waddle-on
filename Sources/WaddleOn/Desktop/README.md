@@ -6,8 +6,21 @@
 the chat view before calling `start()`. The chat starts visible and accepts key
 focus when clicked or explicitly opened. The character panel never takes key focus.
 
-The only character dependency is `PenguinView(frame:)` and
-`setWalking(_:toward:)`, with a `CGVector` in AppKit coordinates.
+The character contract uses `PenguinView(frame:)`, `setWalking(_:toward:)`,
+`isPerformingAction`, `toggleDance()`, `throwSnowball(toward:)`, and `stopAction()`.
+Vectors use AppKit screen coordinates (+y up). Movement pauses during actions.
+
+`snowballsEnabled` defaults to true and `snowballInterval` defaults to 20 seconds
+(clamped to 5...300). Each automatic attempt waits a random 0.75...1.25 multiple
+of that interval. Dragging, app UI interaction, open settings, and menu tracking
+postpone throws. The target is captured at wind-up start and never retargeted.
+At 833 ms, a **native AppKit-drawn** white snowball launches in a noninteractive,
+transparent panel, follows an arc, and disappears after a small 220 ms impact.
+Hide and stop cancel actions and remove projectiles.
+
+Global Option+D uses Carbon `RegisterEventHotKey` with a press/release latch to
+ignore autorepeat; it needs no Accessibility permission. The menu's dance action
+is the fallback if another application has already registered that shortcut.
 
 ## Checks performed
 
@@ -34,7 +47,13 @@ The only character dependency is `PenguinView(frame:)` and
 7. Hide/show through the Spanish menu, open settings and quit. Call stop/start
    again during development to confirm monitor and timer cleanup.
 8. Disconnect a display while the character is on it: it returns to an available
-   visible frame.
+    visible frame.
+9. Hold Option+D: dance toggles once, stays in place, and toggles off on the next
+   independent press. Verify the menu fallback and that walking resumes afterward.
+10. Set the throw interval to 5 seconds, leave the cursor over another app, and
+    move it during wind-up: the snowball still lands at its original target.
+    Click through the projectile, then hide or stop during wind-up/flight and
+    verify immediate cleanup. Open settings and drag to verify suppression.
 
 ## Runtime limitations
 

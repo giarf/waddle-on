@@ -78,7 +78,7 @@ Consulta [procedencia y extracción](docs/assets.md) para URL, checksums y limit
 3. Escribe el identificador del **modelo**, la **API key** y, opcionalmente, las instrucciones del sistema.
 4. Guarda, escribe en la barra y pulsa Enter.
 
-La clave se guarda en el **Llavero de macOS**; el resto de la configuración usa UserDefaults. Los servidores locales sin autenticación admiten una clave vacía. El cliente envía `POST /chat/completions`, incluye el contexto de la conversación y permite cancelar. Las respuestas se muestran al terminar la petición, sin streaming en esta versión.
+La clave y la configuración se guardan localmente en UserDefaults, sin cifrado y sin solicitar acceso al Llavero. Si usabas la versión anterior, vuelve a pegar la clave una vez en Configuración. Los servidores locales sin autenticación admiten una clave vacía. El cliente envía `POST /chat/completions`, incluye el contexto de la conversación y permite cancelar. Las respuestas se muestran al terminar la petición, sin streaming en esta versión.
 
 El historial de conversación vive en memoria y se reinicia al cerrar la app. Option + clic se observa sin consumir el clic: la aplicación que está debajo también lo recibe. Puedes arrastrar el pingüino, hacer clic sobre él para mostrar/ocultar el chat y usar el menú 🐧 para recuperar su posición o salir.
 
@@ -93,6 +93,14 @@ El proyecto se organiza en:
 - `Sources/WaddleOn/App/`: ciclo de vida e integración.
 
 ## Pruebas
+
+### Baile y bolas de nieve
+
+- **⌥ Option + D** inicia/detiene el baile clásico; también está disponible desde el menú 🐧.
+- En **Configuración → Movimiento**, activa o desactiva los lanzamientos automáticos al cursor y ajusta el intervalo aproximado entre **5 y 300 segundos**.
+- Por defecto se usa un intervalo de **20 segundos**, con una espera aleatoria entre **15 y 25 segundos** para cada lanzamiento.
+- La bola apunta al lugar donde estaba el cursor al iniciar el gesto. El personaje se detiene para bailar o lanzar y después retoma el seguimiento.
+- Las animaciones del personaje provienen del SWF original; la bola en vuelo y el impacto se dibujan de forma nativa.
 
 ```sh
 make test

@@ -151,10 +151,7 @@ struct ChatBarView: View {
                 Text(isUser ? "Tú" : "Tu pingüino")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.7))
-                Text(message.content)
-                    .font(.system(size: 13))
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
+                MathMessageView(text: message.content)
             }
             .padding(11)
             .background(isUser ? ocean.opacity(0.8) : Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))

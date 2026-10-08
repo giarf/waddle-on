@@ -7,6 +7,9 @@ final class SettingsViewModel: ObservableObject {
     @Published var apiKey: String
     @Published var systemPrompt: String
     @Published var error: String?
+    @Published var followsMouse = true
+    @Published var snowballsEnabled = true
+    @Published var snowballInterval: Double = 20
 
     var onSave: (() -> Void)?
     var onCancel: (() -> Void)?
@@ -66,6 +69,24 @@ struct SettingsView: View {
 
             Form {
                 Section {
+                    Toggle("Seguir el cursor", isOn: $model.followsMouse)
+                    Toggle("Lanzar bolas de nieve al cursor", isOn: $model.snowballsEnabled)
+                    HStack {
+                        Text("Intervalo aproximado")
+                        Spacer()
+                        Stepper("\(Int(model.snowballInterval)) s", value: $model.snowballInterval, in: 5...300, step: 5)
+                    }
+                    .disabled(!model.snowballsEnabled)
+                    Text("Cada lanzamiento espera entre el 75 % y el 125 % del intervalo. ⌥ D inicia o detiene el baile.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("Movimiento")
+                } footer: {
+                    Text("Camina despacio hacia el cursor y se detiene cerca. Desactívalo para moverlo con ⌥ Option + clic.")
+                        .font(.caption)
+                }
+                Section {
                     TextField("URL base", text: $model.baseURL, prompt: Text("https://api.openai.com/v1"))
                         .help("Dirección base de una API compatible con OpenAI, incluyendo /v1 si corresponde.")
                     TextField("Modelo", text: $model.model, prompt: Text("Nombre del modelo"))
@@ -112,6 +133,6 @@ struct SettingsView: View {
             }
         }
         .padding(24)
-        .frame(width: 550, height: 570)
+        .frame(width: 550, height: 670)
     }
 }

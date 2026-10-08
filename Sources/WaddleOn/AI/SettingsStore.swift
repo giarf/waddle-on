@@ -1,22 +1,29 @@
 import Foundation
-import Security
-
-struct AIKeychainError: Error, LocalizedError {
-    let status: OSStatus
-
-    var errorDescription: String? {
-        "No se pudo acceder a la clave API en el Llavero (estado \(status))."
-    }
-}
 
 final class SettingsStore {
     private let defaults: UserDefaults
-    private let keychainService: String
-    private let keychainAccount = "openai-api-key"
 
-    init(defaults: UserDefaults = .standard, keychainService: String = "com.waddleon.ai") {
+    var followsMouse: Bool {
+        get { defaults.object(forKey: "desktop.followsMouse") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "desktop.followsMouse") }
+    }
+
+    var snowballsEnabled: Bool {
+        get { defaults.object(forKey: "desktop.snowballsEnabled") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "desktop.snowballsEnabled") }
+    }
+
+    var snowballInterval: Double {
+        get { Self.validInterval(defaults.object(forKey: "desktop.snowballInterval") as? Double ?? 20) }
+        set { defaults.set(Self.validInterval(newValue), forKey: "desktop.snowballInterval") }
+    }
+
+    private static func validInterval(_ value: Double) -> Double {
+        value.isFinite ? min(300, max(5, value)) : 20
+    }
+
+    init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        self.keychainService = keychainService
     }
 
     func loadConfiguration() -> AIConfiguration {
@@ -34,46 +41,18 @@ final class SettingsStore {
         defaults.set(configuration.systemPrompt, forKey: "ai.systemPrompt")
     }
 
-    func loadAPIKey() throws -> String {
-        var query = keychainQuery
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        if status == errSecItemNotFound { return "" }
-        guard status == errSecSuccess else { throw AIKeychainError(status: status) }
-        guard let data = result as? Data, let key = String(data: data, encoding: .utf8) else {
-            throw AIKeychainError(status: errSecDecode)
-        }
-        return key
+    func loadAPIKey() -> String {
+        defaults.string(forKey: "ai.apiKey") ?? ""
     }
 
-    /// Saving an empty key removes the credential; other settings never contain it.
-    func saveAPIKey(_ apiKey: String) throws {
+    /// Stored locally without encryption, by user preference. Never access the
+    /// previous Keychain entry: even migration can trigger a password prompt.
+    func saveAPIKey(_ apiKey: String) {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if key.isEmpty {
-            let status = SecItemDelete(keychainQuery as CFDictionary)
-            guard status == errSecSuccess || status == errSecItemNotFound else {
-                throw AIKeychainError(status: status)
-            }
+            defaults.removeObject(forKey: "ai.apiKey")
             return
         }
-        let data = Data(key.utf8)
-        let status = SecItemUpdate(keychainQuery as CFDictionary, [kSecValueData as String: data] as CFDictionary)
-        if status == errSecItemNotFound {
-            var item = keychainQuery
-            item[kSecValueData as String] = data
-            item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            let addStatus = SecItemAdd(item as CFDictionary, nil)
-            guard addStatus == errSecSuccess else { throw AIKeychainError(status: addStatus) }
-        } else if status != errSecSuccess {
-            throw AIKeychainError(status: status)
-        }
-    }
-
-    private var keychainQuery: [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: keychainService,
-         kSecAttrAccount as String: keychainAccount]
+        defaults.set(key, forKey: "ai.apiKey")
     }
 }

@@ -4,26 +4,59 @@ import AppKit
 final class DesktopController: NSObject {
     var onOpenSettings: (() -> Void)?
     var onQuit: (() -> Void)?
+    var snowballsEnabled = true {
+        didSet {
+            scheduleSnowball()
+            if !snowballsEnabled { cancelSnowball() }
+        }
+    }
+    var snowballInterval: Double = 20 {
+        didSet {
+            snowballInterval = SnowballTrajectory.clampedInterval(snowballInterval)
+            scheduleSnowball()
+        }
+    }
+    var followsMouse = true {
+        didSet {
+            destination = nil
+            movementOrigin = nil
+            penguin?.setWalking(false, toward: .zero)
+        }
+    }
 
-    private let characterSize = NSSize(width: 150, height: 170)
+    private let characterSize = NSSize(width: 267, height: 252)
+    private let feetOffset: CGFloat = 41
     private var characterPanel: DesktopPanel!
     private var characterHost: CharacterDragView!
     private var penguin: PenguinView!
     private var chatPanel: DesktopPanel!
     private var bubblePanel: DesktopPanel!
     private var bubbleText: NSTextView!
+    private var bubbleMath: MathMessageWebView!
     private var statusItem: NSStatusItem?
     private var visibilityItem: NSMenuItem?
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var timer: Timer?
+    private var danceHotKey: DanceHotKey?
+    private var nextSnowball: TimeInterval?
+    private var pendingThrow: (launchTime: TimeInterval, start: NSPoint, target: NSPoint)?
+    private var throwingUntil: TimeInterval?
+    private var projectile: SnowballProjectile?
+    private var menuTracking = false
     private var screenObserver: NSObjectProtocol?
     private var destination: NSPoint?
+    // Preserve subpixel progress instead of feeding NSWindow's rounded frame
+    // back into the next step (negative steps otherwise accumulate faster).
+    private var movementOrigin: NSPoint?
     private var lastTick = ProcessInfo.processInfo.systemUptime
+    private var walkingStartsAt: TimeInterval = 0
     private var lastHitCheck: TimeInterval = 0
     private var started = false
     private var visible = true
-    private var chatVisible = true
+    private var chatVisible = false
+    private var welcomeVisible = true
+    private var awaitingFirstFollow = true
     private var chatExpanded = false
     private var bubbleVisible = false
     private var bubbleMeasuredWidth: CGFloat = 0
@@ -37,10 +70,17 @@ final class DesktopController: NSObject {
 
     func start() {
         guard !started else { return }
+        penguin.prepareAnimations()
         started = true
         visible = true
         placeInitially()
+        chatVisible = false
+        welcomeVisible = true
+        awaitingFirstFollow = true
+        penguin.toggleDance()
         makeMenu()
+        danceHotKey = DanceHotKey { [weak self] in self?.toggleDance() }
+        scheduleSnowball()
         // Mouse-only observation does not require Accessibility or Input Monitoring.
         // No event tap or global keyboard capture is installed.
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
@@ -58,10 +98,15 @@ final class DesktopController: NSObject {
         self.timer = timer
         RunLoop.main.add(timer, forMode: .common)
         updateVisibility()
+        walkingStartsAt = ProcessInfo.processInfo.systemUptime + 5
     }
 
     func stop() {
         started = false
+        stopActions()
+        nextSnowball = nil
+        danceHotKey?.stop()
+        danceHotKey = nil
         timer?.invalidate()
         timer = nil
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
@@ -80,13 +125,22 @@ final class DesktopController: NSObject {
     }
 
     func showBubble(_ text: String) {
+        welcomeVisible = false
         bubbleText.string = text
+        bubbleMath.setMessage(text)
         bubbleVisible = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         positionCompanions()
         updateVisibility()
     }
 
+    func showWelcome() {
+        showBubble("⌥ + D para que te siga\nHaz clic en mí para hablarme.")
+        welcomeVisible = true
+        updateVisibility()
+    }
+
     func setChatVisible(_ visible: Bool) {
+        welcomeVisible = false
         chatVisible = visible
         if visible { self.visible = true }
         positionCompanions()
@@ -116,7 +170,10 @@ final class DesktopController: NSObject {
         penguin.autoresizingMask = [.width, .height]
         characterHost.addSubview(penguin)
         characterHost.onDragStart = { [weak self] in
+            self?.stopActions()
+            self?.scheduleSnowball()
             self?.destination = nil
+            self?.movementOrigin = nil
             self?.penguin.setWalking(false, toward: .zero)
         }
         characterHost.onDrag = { [weak self] delta in
@@ -157,7 +214,15 @@ final class DesktopController: NSObject {
         bubbleText.autoresizingMask = [.width]
         bubbleText.textContainer?.widthTracksTextView = true
         scroll.documentView = bubbleText
-        background.addSubview(scroll)
+        bubbleMath = MathMessageWebView()
+        bubbleMath.frame = scroll.frame
+        bubbleMath.autoresizingMask = [.width, .height]
+        bubbleMath.onHeight = { [weak self] height in
+            guard let self else { return }
+            self.bubbleMeasuredHeight = height
+            self.positionCompanions()
+        }
+        background.addSubview(bubbleMath)
         bubblePanel.contentView = background
     }
 
@@ -177,6 +242,7 @@ final class DesktopController: NSObject {
     }
 
     private func placeInitially() {
+        movementOrigin = nil
         guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
         characterPanel.setFrameOrigin(NSPoint(x: screen.visibleFrame.maxX - characterSize.width - 40,
                                              y: screen.visibleFrame.minY + 125))
@@ -184,14 +250,14 @@ final class DesktopController: NSObject {
     }
 
     private func handleOptionClick(_ event: NSEvent) {
-        guard event.modifierFlags.contains(.option), started else { return }
+        guard !followsMouse, event.modifierFlags.contains(.option), started else { return }
         visible = true
         let point = NSEvent.mouseLocation
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }) else { return }
         // Mouse location and NSWindow origins both use global AppKit coordinates,
         // including negative origins on secondary displays.
         destination = clampedOrigin(NSPoint(x: point.x - characterSize.width / 2,
-                                            y: point.y - 14), on: screen)
+                                            y: point.y - feetOffset), on: screen)
         updateVisibility()
     }
 
@@ -199,34 +265,80 @@ final class DesktopController: NSObject {
         let now = ProcessInfo.processInfo.systemUptime
         let elapsed = min(now - lastTick, 0.05)
         lastTick = now
-        if let target = destination, visible, !characterHost.isDragging {
-            let origin = characterPanel.frame.origin
+        penguin.advanceAnimation(at: now)
+        let readyToWalk = now >= walkingStartsAt && !awaitingFirstFollow
+        if readyToWalk { updateActions(now: now) }
+        let actionBlocksWalking = penguin.isPerformingAction || pendingThrow != nil || throwingUntil != nil
+        if readyToWalk, followsMouse, !actionBlocksWalking { updateMouseDestination() }
+        if let target = destination, readyToWalk, visible, !characterHost.isDragging, !actionBlocksWalking {
+            let origin = movementOrigin ?? characterPanel.frame.origin
             let dx = target.x - origin.x
             let dy = target.y - origin.y
             let distance = hypot(dx, dy)
-            let step = CGFloat(elapsed) * 300
+            let step = CGFloat(elapsed) * (followsMouse ? 110 : 300)
             if distance <= max(step, 0.5) {
+                movementOrigin = target
                 characterPanel.setFrameOrigin(target)
                 destination = nil
                 penguin.setWalking(false, toward: .zero)
             } else {
                 penguin.setWalking(true, toward: CGVector(dx: dx, dy: dy))
-                characterPanel.setFrameOrigin(NSPoint(x: origin.x + dx / distance * step,
-                                                       y: origin.y + dy / distance * step))
+                let next = NSPoint(x: origin.x + dx / distance * step,
+                                   y: origin.y + dy / distance * step)
+                movementOrigin = next
+                characterPanel.setFrameOrigin(next)
             }
             positionCompanions()
+        } else if !actionBlocksWalking {
+            movementOrigin = nil
         }
         if now - lastHitCheck >= 0.05 {
             lastHitCheck = now
             updateCharacterHitRegion()
             if chatVisible { updatePanelHitRegion(chatPanel) }
-            if bubbleVisible { updatePanelHitRegion(bubblePanel) }
+            if (chatVisible || welcomeVisible) && bubbleVisible { updatePanelHitRegion(bubblePanel) }
         }
+    }
+
+    private func updateMouseDestination() {
+        let point = NSEvent.mouseLocation
+        // Stay still while the user interacts with our UI or drags anything.
+        let interacting = NSApp.windows.contains {
+            $0.isVisible && $0 !== characterPanel && $0 !== projectile?.panel && $0.frame.contains(point)
+        }
+        guard visible, !characterHost.isDragging, NSEvent.pressedMouseButtons == 0,
+              !interacting,
+              let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }) else {
+            destination = nil
+            penguin.setWalking(false, toward: .zero)
+            return
+        }
+        let origin = movementOrigin ?? characterPanel.frame.origin
+        let feet = NSPoint(x: origin.x + characterSize.width / 2, y: origin.y + feetOffset)
+        let dx = point.x - feet.x
+        let dy = point.y - feet.y
+        let distance = hypot(dx, dy)
+        // Hysteresis avoids little steps every time the cursor trembles.
+        let stoppingDistance: CGFloat = 110
+        guard distance > (destination == nil ? stoppingDistance + 30 : stoppingDistance + 2) else {
+            destination = nil
+            penguin.setWalking(false, toward: .zero)
+            return
+        }
+        destination = clampedOrigin(NSPoint(
+            x: point.x - dx / distance * stoppingDistance - characterSize.width / 2,
+            y: point.y - dy / distance * stoppingDistance - feetOffset
+        ), on: screen)
     }
 
     private func updatePanelHitRegion(_ panel: NSPanel) {
         // Keep receiving mouse-up during selection and scroll interactions.
         guard NSEvent.pressedMouseButtons == 0, let content = panel.contentView else { return }
+        // WebKit draws out of process and does not appear in cacheDisplay.
+        if panel === bubblePanel {
+            panel.ignoresMouseEvents = !panel.frame.insetBy(dx: 5, dy: 5).contains(NSEvent.mouseLocation)
+            return
+        }
         let local = content.convert(panel.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
         guard content.bounds.contains(local), let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds) else {
             panel.ignoresMouseEvents = true
@@ -272,6 +384,7 @@ final class DesktopController: NSObject {
     }
 
     private func screensChanged() {
+        movementOrigin = nil
         guard let screen = characterScreen else { return }
         destination = nil
         penguin.setWalking(false, toward: .zero)
@@ -298,8 +411,9 @@ final class DesktopController: NSObject {
         }
         let bubbleHeight = min(max(76, bubbleMeasuredHeight + 42), min(280, bounds.height))
         let x = min(max(characterPanel.frame.midX - bubbleWidth / 2, bounds.minX), bounds.maxX - bubbleWidth)
-        var y = characterPanel.frame.maxY + 8
-        if y + bubbleHeight > bounds.maxY { y = characterPanel.frame.minY - bubbleHeight - 8 }
+        let pose = characterPanel.convertToScreen(penguin.convert(penguin.standingRect, to: nil))
+        var y = pose.maxY + 4
+        if y + bubbleHeight > bounds.maxY { y = pose.minY - bubbleHeight - 4 }
         y = min(max(y, bounds.minY), bounds.maxY - bubbleHeight)
         bubblePanel.setFrame(NSRect(x: x, y: y, width: bubbleWidth, height: bubbleHeight), display: true)
         bubbleText.textContainer?.containerSize = NSSize(width: contentWidth, height: .greatestFiniteMagnitude)
@@ -309,25 +423,38 @@ final class DesktopController: NSObject {
     private func updateVisibility() {
         visibilityItem?.title = visible ? "Ocultar Waddle On" : "Mostrar Waddle On"
         guard started, visible else {
+            stopActions()
+            nextSnowball = nil
             characterPanel.orderOut(nil)
             chatPanel.orderOut(nil)
             bubblePanel.orderOut(nil)
             return
         }
         characterPanel.orderFrontRegardless()
+        if nextSnowball == nil { scheduleSnowball() }
         if chatVisible { chatPanel.orderFrontRegardless() } else { chatPanel.orderOut(nil) }
-        if bubbleVisible { bubblePanel.orderFrontRegardless() } else { bubblePanel.orderOut(nil) }
+        if (chatVisible || welcomeVisible) && bubbleVisible { bubblePanel.orderFrontRegardless() } else { bubblePanel.orderOut(nil) }
     }
 
     private func makeMenu() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.title = "🐧"
+        let embedded = Bundle.main.url(forResource: "WaddleOn_WaddleOn", withExtension: "bundle").flatMap(Bundle.init(url:))
+        if let url = (embedded ?? Bundle.module).url(forResource: "MenuIcon", withExtension: "png", subdirectory: "Resources"),
+           let image = NSImage(contentsOf: url) {
+            image.size = NSSize(width: 20, height: 20)
+            image.isTemplate = true
+            item.button?.image = image
+        } else {
+            item.button?.image = NSImage(systemSymbolName: "bird.fill", accessibilityDescription: "Waddle On")
+        }
         item.button?.toolTip = "Waddle On — Opción + clic para caminar"
         let menu = NSMenu()
+        menu.delegate = self
         visibilityItem = menu.addItem(withTitle: "Ocultar Waddle On", action: #selector(toggleVisibility), keyEquivalent: "")
         visibilityItem?.target = self
         addMenuItem("Abrir chat", action: #selector(openChat), to: menu)
         addMenuItem("Traer pingüino aquí", action: #selector(bringHere), to: menu)
+        addMenuItem("Bailar / dejar de bailar (⌥D)", action: #selector(toggleDance), to: menu)
         menu.addItem(.separator())
         let hint = menu.addItem(withTitle: "Opción + clic para caminar · Arrastra para mover", action: nil, keyEquivalent: "")
         hint.isEnabled = false
@@ -348,17 +475,100 @@ final class DesktopController: NSObject {
         updateVisibility()
     }
     @objc private func openChat() { setChatVisible(true) }
-    @objc private func openSettings() { onOpenSettings?() }
+    @objc private func openSettings() { stopActions(); scheduleSnowball(); onOpenSettings?() }
     @objc private func quit() {
         if let onQuit { onQuit() } else { NSApp.terminate(nil) }
     }
     @objc private func bringHere() {
+        stopActions()
         visible = true
         placeInitially()
         destination = nil
         penguin.setWalking(false, toward: .zero)
         updateVisibility()
     }
+
+    /// A registered global shortcut and the menu share this action.
+    @objc func toggleDance() {
+        guard started, visible, !characterHost.isDragging, !settingsVisible else { return }
+        if awaitingFirstFollow {
+            awaitingFirstFollow = false
+            followsMouse = true
+            stopActions()
+            walkingStartsAt = ProcessInfo.processInfo.systemUptime
+            scheduleSnowball()
+            return
+        }
+        cancelSnowball()
+        penguin.setWalking(false, toward: .zero)
+        penguin.toggleDance()
+        scheduleSnowball()
+    }
+
+    private var settingsVisible: Bool {
+        NSApp.windows.contains { $0.isVisible && $0.styleMask.contains(.titled) }
+    }
+
+    private var actionInteraction: Bool {
+        if characterHost.isDragging || NSEvent.pressedMouseButtons != 0 || menuTracking || settingsVisible { return true }
+        let point = NSEvent.mouseLocation
+        return NSApp.windows.contains {
+            $0.isVisible && $0 !== characterPanel && $0 !== projectile?.panel && $0.frame.contains(point)
+        }
+    }
+
+    private func scheduleSnowball() {
+        nextSnowball = ProcessInfo.processInfo.systemUptime
+            + SnowballTrajectory.randomDelay(interval: snowballInterval)
+    }
+
+    private func cancelSnowball() {
+        if pendingThrow != nil || throwingUntil != nil { penguin?.stopAction() }
+        pendingThrow = nil
+        throwingUntil = nil
+        projectile?.stop()
+        projectile = nil
+    }
+
+    private func stopActions() {
+        cancelSnowball()
+        penguin?.stopAction()
+    }
+
+    private func updateActions(now: TimeInterval) {
+        guard started, visible else { return }
+        if let throwingUntil, now >= throwingUntil { self.throwingUntil = nil }
+        if let projectile, !projectile.advance(now: now) {
+            projectile.stop()
+            self.projectile = nil
+        }
+        if actionInteraction {
+            if pendingThrow != nil { cancelSnowball() }
+            if settingsVisible { stopActions() }
+            scheduleSnowball()
+            return
+        }
+        if let pending = pendingThrow, now >= pending.launchTime {
+            projectile?.stop()
+            projectile = SnowballProjectile(start: pending.start, target: pending.target, launchedAt: now)
+            pendingThrow = nil
+        }
+        guard snowballsEnabled, !penguin.isPerformingAction, pendingThrow == nil, projectile == nil,
+              let deadline = nextSnowball, now >= deadline else { return }
+        // Capture once: moving the pointer during the wind-up never retargets the throw.
+        let target = NSEvent.mouseLocation
+        let start = NSPoint(x: characterPanel.frame.midX, y: characterPanel.frame.minY + feetOffset + 71)
+        penguin.setWalking(false, toward: .zero)
+        penguin.throwSnowball(toward: CGVector(dx: target.x - start.x, dy: target.y - start.y))
+        pendingThrow = (now + PenguinView.snowballReleaseDelay, start, target)
+        throwingUntil = now + PenguinView.throwDuration
+        scheduleSnowball()
+    }
+}
+
+extension DesktopController: NSMenuDelegate {
+    func menuWillOpen(_ menu: NSMenu) { menuTracking = true; cancelSnowball() }
+    func menuDidClose(_ menu: NSMenu) { menuTracking = false; scheduleSnowball() }
 }
 
 private final class DesktopPanel: NSPanel {

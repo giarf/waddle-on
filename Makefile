@@ -6,6 +6,7 @@ app:
 	swift build -c $(CONFIG)
 	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources"
 	cp Support/Info.plist "$(APP)/Contents/Info.plist"
+	cp Support/AppIcon.icns "$(APP)/Contents/Resources/AppIcon.icns"
 	cp ".build/$(CONFIG)/WaddleOn" "$(APP)/Contents/MacOS/WaddleOn"
 	cp -R ".build/$(CONFIG)/WaddleOn_WaddleOn.bundle" "$(APP)/Contents/Resources/"
 	codesign --force --deep --sign - "$(APP)"

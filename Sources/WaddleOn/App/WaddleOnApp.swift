@@ -30,8 +30,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         desktop.onOpenSettings = { [weak self] in self?.openSettings() }
         desktop.onQuit = { NSApp.terminate(nil) }
         desktop.setChatContent(NSHostingView(rootView: ChatBarView(model: chat)))
+        desktop.followsMouse = store.followsMouse
+        desktop.snowballsEnabled = store.snowballsEnabled
+        desktop.snowballInterval = store.snowballInterval
         desktop.start()
-        desktop.showBubble("¡Hola! Soy tu compañero de escritorio. Mantén ⌥ Option y haz clic para que camine hasta allí.")
+        desktop.showWelcome()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -66,9 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func send(_ text: String) {
         guard request == nil else { return }
         let configuration = store.loadConfiguration()
-        let key: String
-        do { key = try store.loadAPIKey() }
-        catch { chat.error = error.localizedDescription; openSettings(); return }
+        let key = store.loadAPIKey()
         guard !configuration.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             chat.error = "Configura el modelo de IA para empezar."
             openSettings()
@@ -108,20 +109,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let model = SettingsViewModel(
             baseURL: configuration.baseURL,
             model: configuration.model,
-            apiKey: (try? store.loadAPIKey()) ?? "",
+            apiKey: store.loadAPIKey(),
             systemPrompt: configuration.systemPrompt
         )
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 540, height: 550),
+            contentRect: NSRect(x: 0, y: 0, width: 550, height: 670),
             styleMask: [.titled, .closable], backing: .buffered, defer: false
         )
         window.title = "Configurar Waddle On"
         window.isReleasedWhenClosed = false
         window.level = .floating
+        model.followsMouse = store.followsMouse
+        model.snowballsEnabled = store.snowballsEnabled
+        model.snowballInterval = store.snowballInterval
         model.onSave = { [weak self, weak window, weak model] in
             guard let self, let model else { return }
-            do {
-                try self.store.saveAPIKey(model.apiKey)
+                self.store.saveAPIKey(model.apiKey)
+                self.store.followsMouse = model.followsMouse
+                self.desktop.followsMouse = model.followsMouse
+                self.store.snowballsEnabled = model.snowballsEnabled
+                self.store.snowballInterval = model.snowballInterval
+                self.desktop.snowballsEnabled = model.snowballsEnabled
+                self.desktop.snowballInterval = self.store.snowballInterval
                 self.store.saveConfiguration(AIConfiguration(
                     baseURL: model.baseURL.trimmingCharacters(in: .whitespacesAndNewlines),
                     model: model.model.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -130,7 +139,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.chat.error = nil
                 window?.close()
                 self.settingsWindow = nil
-            } catch { model.error = error.localizedDescription }
         }
         model.onCancel = { [weak self, weak window] in
             window?.close()

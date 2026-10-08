@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self';">
+<link rel="stylesheet" href="katex.min.css">
+<script src="katex.min.js"></script><script src="contrib/auto-render.min.js"></script>
+<style>
+html,body { background:transparent; margin:0; padding:0; }
+body { font:14px/1.4 -apple-system,sans-serif; color:#172d42; overflow-wrap:anywhere; }
+#message { white-space:pre-wrap; padding:4px; }
+.katex { white-space:nowrap; overflow-wrap:normal; word-break:normal; font-size:1.1em; }
+.katex-display { margin:0.4em 0; padding:0.35em 0.2em; overflow-x:auto; overflow-y:hidden; text-align:left; }
+.katex-display > .katex { text-align:left; }
+@media(prefers-color-scheme:dark) { body { color:#f4f7fa; } }
+</style></head><body><div id="message"></div><script>
+function setMessage(text, dark) {
+ document.body.style.color = dark ? '#f4f7fa' : '';
+ const node = document.getElementById('message');
+ node.textContent = text;
+ renderMathInElement(node, {delimiters:[
+  {left:'$$',right:'$$',display:true}, {left:'\\[',right:'\\]',display:true},
+  {left:'\\(',right:'\\)',display:false}, {left:'$',right:'$',display:false}
+ ], throwOnError:false, trust:false, maxExpand:1000, maxSize:20,
+  macros:{'\\sen':'\\sin'}, strict:'ignore'});
+ // Display math already supplies its own vertical spacing. Preserved newlines
+ // beside it would add blank lines on top of KaTeX's margins.
+ node.querySelectorAll('.katex-display').forEach(display => {
+  let block = display;
+  while (block.parentNode !== node && block.parentNode.childNodes.length === 1) block = block.parentNode;
+  const before = block.previousSibling, after = block.nextSibling;
+  if (before && before.nodeType === Node.TEXT_NODE) before.textContent = before.textContent.replace(/\s+$/, '');
+  if (after && after.nodeType === Node.TEXT_NODE) after.textContent = after.textContent.replace(/^\s+/, '');
+ });
+ reportHeight();
+}
+function reportHeight() { window.webkit.messageHandlers.height.postMessage(document.getElementById('message').scrollHeight); }
+new ResizeObserver(reportHeight).observe(document.getElementById('message'));
+document.fonts.ready.then(reportHeight);
+</script></body></html>

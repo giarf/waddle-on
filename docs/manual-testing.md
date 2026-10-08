@@ -16,7 +16,7 @@ Compilar con `make app` y ejecutar con `make run`. Se requiere una sesión gráf
 ## Chat y configuración
 
 - Abrir configuración desde el engranaje; introducir URL base, modelo y API key de un proveedor compatible con OpenAI.
-- Guardar y reabrir: comprobar configuración y clave; esta última se guarda en el Llavero de macOS.
+- Guardar y reabrir: comprobar configuración y clave en preferencias locales, sin diálogos del Llavero.
 - Escribir en la barra azul y enviar con Enter; verificar estado de espera y globo con respuesta real.
 - Enviar una segunda pregunta que dependa de la anterior para verificar contexto.
 - Desplegar/cerrar historial con la flecha; comprobar scroll, selección de texto y que no se pierda el borrador.

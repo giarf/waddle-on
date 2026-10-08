@@ -41,16 +41,48 @@ Only the resulting PNG is shipped. Flash, Java, network access, and the source m
 let penguin = PenguinView(frame: NSRect(x: 0, y: 0, width: 100, height: 110))
 penguin.setWalking(true, toward: CGVector(dx: 1, dy: 0))
 penguin.setWalking(false, toward: .zero)
+penguin.toggleDance() // Again to stop; original 193-frame dance loops.
+penguin.throwSnowball(toward: CGVector(dx: 1, dy: 0)) // One shot, then idle.
+penguin.stopAction()
+let busy = penguin.isPerformingAction
 ```
 
 `PenguinView` is an `NSView` with intrinsic content size 100×110. Use it on the main thread. The movement vector uses AppKit screen coordinates: positive x is right, positive y is up. Zero or non-finite vectors preserve the previous facing direction. The view aspect-fits the sprite, preserving transparency and anchor alignment; callers own all movement and event handling.
 
 Resources load from `Bundle.module`, subdirectory `Resources/Penguin`, with the package's `.copy("Resources")` rule. Frames are decoded once and shared between instances. The 24 fps timer runs in common run-loop modes while attached to a window, uses a weak capture, and stops when detached. Reduce Motion displays standing poses while retaining facing updates.
 
+### Original dance and snowball actions
+
+`Support/extract-penguin-actions.py` reproduces both action atlases from the pinned source SWF using Java, FFDec 26.2.1 and Pillow:
+
+```sh
+python3 Support/extract-penguin-actions.py /path/to/penguin.swf /path/to/ffdec-cli.jar /path/to/work-dir
+```
+
+The extractor resolves the original root display list at each action frame, retains its component transforms, then holds that pose while all nested component timelines advance together at **24 fps**. Importantly, root frame 29 inherits two components from frame 28 with matrix-only updates; these are resolved before extraction and their animation clocks restart together. No artwork is redrawn, recolored, interpolated or approximated. Source `stop()` commands on throw frame 28 are respected by one-shot native playback; no ActionScript runs in the app.
+
+| Action | Root frame | Component symbols | Frames | Duration |
+| --- | --- | --- | --- | --- |
+| Dance | 26 | 275, 297, 319 | 193 | 193/24 = 8.0416667 s, looping |
+| Throw southwest | 27 | 345, 370, 398 | 28 | 28/24 = 1.1666667 s |
+| Throw northwest | 28 | 422, 429, 455 | 28 | 28/24 = 1.1666667 s |
+| Throw northeast | 29 | 481, inherited 429 and 455 | 28 | 28/24 = 1.1666667 s |
+| Throw southeast | 30 | 495, 370, 398 | 28 | 28/24 = 1.1666667 s |
+
+The local Yukon sources were read directly: `ActionsMenu.js` requests dance frame 26, and `SnowballFactory.js` computes `max(round(direction / 2), 1) + 26` and schedules projectile release after **833 milliseconds**. Thus the eight facing directions map to the four authentic throw poses as S/SW → 27, W/NW → 28, N/NE → 29, E/SE → 30. `PenguinView.snowballReleaseDelay` and `.throwDuration` expose the timing contract; projectile creation and movement belong to Desktop.
+
+- Dance atlas: `penguin-dance-atlas.png`, **3616×2769**, 16 columns × 13 rows, first 193 cells in row-major order (remaining 15 transparent).
+- Throw atlas: `penguin-throw-atlas.png`, **6328×852**, 28 columns × 4 rows ordered roots 27, 28, 29, 30.
+- Both use transparent **226×213** cells, from the same unscaled 3× FFDec raster canvas cropped at `(6,65,232,278)`. The original 127×142 standing/walking cell occupies `(51,50,178,192)` in this shared canvas (top-origin coordinates). The entire canvas is aspect-fit for every state, preventing action clipping, anchor jumps or action-specific resizing; the penguin therefore occupies less of a same-sized view than before the action expansion.
+- Dance SHA-256: `e11fb06da1805431937fda1e3e4ca52bf27f13496bc1001169371b776d9812a9`.
+- Throw SHA-256: `17c115f6f44751aadb521b914acdb603106f7dfb4a855df9f7c13912acf5e0dc`.
+
+Dance starts facing south, toggles off, and can be interrupted by a throw. A throw replaces the current action, uses monotonic elapsed time, and returns to a standing pose after 28/24 seconds. `setWalking(true,toward:)` cancels actions; `setWalking(false,toward:)` does not disturb an active action. `stopAction()` returns to idle after an action. Reduce Motion suppresses animated action frames but preserves busy state and one-shot completion timing. Detaching stops redraw timers; action elapsed time still advances, so a completed throw does not resume later.
+
 ## Actual limitations
 
 - The source standing poses are static. Idle breathing is a subtle native vertical stretch of the authentic standing pose, not an original multi-frame idle animation.
-- The bundled color is the blue/purple color present in the SWF. Clothing, player-selected colors, sit, dance, and special-action timelines are not included.
+- The bundled color is the blue/purple color present in the SWF. Clothing, player-selected colors, sit, and other special-action timelines are not included.
 - Extraction reproduces vector fills and original timeline transforms through FFDec's rasterizer; it is not a Flash runtime screenshot and may differ in edge antialiasing.
 - A missing/invalid atlas logs an error and leaves a transparent view rather than substituting unrelated artwork.
 
@@ -60,3 +92,6 @@ Resources load from `Bundle.module`, subdirectory `Resources/Penguin`, with the 
 - A native AppKit smoke check decoded the atlas through `NSImage`, extracted its `CGImage`, and cropped all 72 cells with the same geometry used by the view. The resulting south-facing cell was visually checked for orientation and transparency.
 - Pillow verified eight distinct walking frames for every direction. The final expanded source canvas contains the full union of visible pixels with margins; no individual frame is cropped to its own bounds.
 - Full interactive desktop movement and integration are owned by the application/desktop components.
+- Action extraction verified all 305 frames and transparency bounds against both the stage and final common crop; the dance has 57 pixel-distinct frames (original holds/repeats retained), and the throws have 28, 25, 25 and 28 respectively. Union bounds on the 240×315 source canvas are dance `(30,99,210,274)`, throw 27 `(39,69,228,273)`, throw 28 `(29,90,168,239)`, throw 29 `(73,90,212,239)`, and throw 30 `(10,69,199,272)`. Each has at least four pixels of final-crop safety margin.
+- A contact sheet spanning all five action sequences was visually inspected, including the windup, held snowball, release and recovery. `swift build` passed with the action playback API and copied atlases.
+- A native AppKit smoke executable loaded the real `PenguinView` and package resource bundle, drew all four throw directions, verified dance toggle and stop, preserved dance through `setWalking(false)`, cancelled dance through `setWalking(true)`, and waited for each throw's one-shot completion. All assertions passed; `git diff --check` also passed.
