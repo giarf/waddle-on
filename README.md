@@ -30,7 +30,7 @@ El cask verifica el SHA-256 de la descarga y elimina automáticamente la cuarent
 
 ### DMG
 
-**[Descargar Waddle On 26.10.0 para macOS](https://github.com/giarf/waddle-on/releases/latest/download/Waddle-On-26.10.0.dmg)**
+**[Descargar Waddle On para macOS](https://github.com/giarf/waddle-on/releases/latest/download/Waddle-On.dmg)**
 
 Abre el DMG y arrastra **Waddle On** a **Aplicaciones**.
 

@@ -34,4 +34,4 @@ dmg:
 	mkdir -p build/dmg
 	ditto "$(APP)" "build/dmg/Waddle On.app"
 	ln -sfn /Applications build/dmg/Applications
-	hdiutil create -volname "Waddle On" -srcfolder build/dmg -ov -format UDZO "build/Waddle-On-$(VERSION).dmg"
+	hdiutil create -volname "Waddle On" -srcfolder build/dmg -ov -format UDZO "build/Waddle-On.dmg"
