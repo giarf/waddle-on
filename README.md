@@ -1,55 +1,82 @@
 <h1 align="center">Waddle On</h1>
 
-<p align="center">
-  Un pingüino en tu escritorio. Sigue pingüineando con IA.
-</p>
+<p align="center">Un pingüino en tu escritorio. Sigue pingüineando con IA.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/plataforma-macOS-black?style=flat-square&logo=apple" alt="Para macOS">
-  <img src="https://img.shields.io/badge/estado-en%20desarrollo-blue?style=flat-square" alt="En desarrollo">
+  <a href="https://github.com/giarf/waddle-on/releases/latest"><img src="https://img.shields.io/github/v/release/giarf/waddle-on?style=flat-square" alt="Última versión"></a>
+  <img src="https://img.shields.io/badge/macOS-13%2B-black?style=flat-square&logo=apple" alt="macOS 13 o superior">
+  <img src="https://img.shields.io/badge/Swift-5.9-F05138?style=flat-square&logo=swift&logoColor=white" alt="Swift 5.9">
 </p>
 
-Waddle On es un proyecto de compañero de escritorio para macOS inspirado en Club Penguin. La idea es tener un pingüino que puedas mover por la pantalla, que camine con sus animaciones y que responda a tus mensajes en globos de diálogo. Una barra de escritura flotante, al estilo del juego, conecta la conversación con una IA.
+<p align="center"><img src="Support/AppIcon.png" width="180" alt="Icono de Waddle On"></p>
 
-## Estado actual
-
-Primera versión nativa ejecutable para macOS, implementada con Swift, AppKit y SwiftUI. Incluye sprites originales, movimiento con Option + clic, barra azul de chat, historial desplegable, globos y conexión a APIs compatibles con OpenAI.
-
-La compilación release y las 7 pruebas automatizadas de red/configuración pasan. La app se ha iniciado desde su bundle local; la interacción visual entre pantallas/Spaces y la conversación con un proveedor real requieren verificación manual.
-
-## Experiencia
-
-- Pingüino sobre el escritorio, sin marco ni fondo visible.
-- Arrastre para colocarlo donde quieras.
-- Movimiento animado hacia el lugar donde haces **Option (⌥) + clic**, incluso fuera de la app.
-- Barra de escritura flotante en la parte inferior de la pantalla.
-- Respuestas de la IA en globos encima del personaje.
-- Globos desplazables para respuestas largas e historial completo desplegable con la flecha de la barra.
-- Las zonas transparentes dejan pasar los clics a las aplicaciones de debajo.
-- El teclado se enfoca en el chat cuando activas la barra de escritura.
-- Acceso desde la barra de menús para mostrar, ocultar y configurar el compañero.
+Waddle On es un compañero de escritorio para macOS con animaciones de Club Penguin, chat con IA y globos de conversación. Camina detrás del cursor, baila y lanza bolas de nieve.
 
 ## Requisitos
 
-macOS 13 o posterior y herramientas de desarrollo de Apple con Swift 5.9 o posterior (Xcode o Command Line Tools). No hay dependencias externas ni se necesita Flash en tiempo de ejecución.
+- macOS 13 o superior.
+- Mac con Apple Silicon o Intel; el DMG incluye un ejecutable universal.
+- Un proveedor compatible con OpenAI para conversar (URL base, modelo y API key).
+
+## Instalar
+
+### Homebrew
+
+```sh
+brew install --cask giarf/tap/waddle-on
+```
+
+El cask verifica el SHA-256 de la descarga y elimina automáticamente la cuarentena de la aplicación instalada, siguiendo el mismo flujo de Focnotes.
+
+### DMG
+
+**[Descargar Waddle On 26.10.0 para macOS](https://github.com/giarf/waddle-on/releases/latest/download/Waddle-On-26.10.0.dmg)**
+
+Abre el DMG y arrastra **Waddle On** a **Aplicaciones**.
+
+La aplicación tiene firma ad hoc y no está notarizada por Apple. Si macOS bloquea su apertura, puedes usar **Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente**. Tras comprobar que descargaste el DMG de este repositorio, también puedes ejecutar:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Waddle On.app"
+```
+
+## Primer inicio
+
+- El pingüino aparece bailando, con la barra de escritura oculta.
+- Pulsa **⌥ D** para que deje de bailar y siga el cursor.
+- Haz clic en el pingüino para mostrar la barra; otro clic oculta la barra y el globo.
+- Abre el engranaje o **Configuración…** desde el icono del iglú en la barra de menús.
+- Introduce URL base, modelo y API key. Escribe un mensaje y pulsa Enter.
+
+## Comportamiento
+
+- Personaje transparente por encima de las ventanas, visible entre Spaces.
+- Seguimiento del cursor a ritmo de pingüino, con distancia de separación y arrastre manual.
+- Desactiva **Seguir el cursor** para moverlo con **⌥ Option + clic**. El clic también llega a la aplicación de debajo.
+- **⌥ D** inicia o detiene el baile clásico; también está disponible en el menú del iglú. Si otra app usa ese atajo, utiliza el menú.
+- Bolas de nieve automáticas configurables entre **5 y 300 segundos**. El intervalo de 20 s produce esperas aleatorias de 15–25 s.
+- El personaje se detiene para lanzar y después retoma la caminata. La bola apunta a la posición del cursor al iniciar el gesto.
+- Chat azul flotante, historial desplegable, cancelación de peticiones y globos desplazables.
+- Fórmulas LaTeX renderizadas localmente con [KaTeX](https://github.com/KaTeX/KaTeX): `\(…\)`, `\[…\]`, `$…$` y `$$…$$`.
+- Icono monocromático de iglú en la barra de menús; la app no ocupa un lugar permanente en el Dock.
+
+La configuración y la API key se guardan en preferencias locales **sin cifrado**, sin usar el Llavero. Los servidores locales sin autenticación admiten una clave vacía. El historial vive en memoria y se reinicia al cerrar; las respuestas llegan completas, sin streaming.
 
 ## Compilar
 
-Desde la raíz del repositorio:
+Necesitas Xcode Command Line Tools con Swift 5.9 o posterior.
 
 ```sh
 make app
 ```
 
-La aplicación se genera con firma ad hoc local en:
+La app queda en `build/Waddle On.app`. Para generar el DMG universal:
 
-```text
-build/Waddle On.app
+```sh
+make dmg
 ```
 
 ## Ejecutar
-
-Compilar y abrir:
 
 ```sh
 make run
@@ -57,76 +84,29 @@ make run
 
 ## Instalar compilación local
 
-Instalar en Aplicaciones:
-
 ```sh
 make install
 ```
 
-Compilará e instalará la aplicación en `/Applications/Waddle On.app`.
-
-## Recursos del pingüino
-
-Se inspeccionaron las copias locales de Wand y Yukon en `../clubpenguin/`; sus carpetas de medios no contenían el pingüino base. Se recuperó el SWF original desde un mirror y se extrajo con FFDec un atlas PNG transparente: ocho poses de pie y ocho cuadros de caminata por cada una de las ocho direcciones.
-
-Consulta [procedencia y extracción](docs/assets.md) para URL, checksums y limitaciones. El atlas se incluye en la app y se carga sin conexión. El personaje es azul; la respiración en reposo es una transformación sutil de la pose original.
-
-## Configurar la IA
-
-1. Abre el engranaje de la barra azul o **Configuración…** en el menú 🐧.
-2. Indica la **URL base**, por ejemplo `https://api.openai.com/v1` o la URL de tu servidor compatible.
-3. Escribe el identificador del **modelo**, la **API key** y, opcionalmente, las instrucciones del sistema.
-4. Guarda, escribe en la barra y pulsa Enter.
-
-La clave y la configuración se guardan localmente en UserDefaults, sin cifrado y sin solicitar acceso al Llavero. Si usabas la versión anterior, vuelve a pegar la clave una vez en Configuración. Los servidores locales sin autenticación admiten una clave vacía. El cliente envía `POST /chat/completions`, incluye el contexto de la conversación y permite cancelar. Las respuestas se muestran al terminar la petición, sin streaming en esta versión.
-
-El historial de conversación vive en memoria y se reinicia al cerrar la app. Option + clic se observa sin consumir el clic: la aplicación que está debajo también lo recibe. Puedes arrastrar el pingüino, hacer clic sobre él para mostrar/ocultar el chat y usar el menú 🐧 para recuperar su posición o salir.
-
-## Detalles de implementación
-
-El proyecto se organiza en:
-
-- `Sources/WaddleOn/Character/` y `Resources/`: sprites y animación direccional.
-- `Sources/WaddleOn/Desktop/`: paneles transparentes, movimiento, globos y menú.
-- `Sources/WaddleOn/UI/`: barra azul, historial y configuración.
-- `Sources/WaddleOn/AI/`: cliente HTTP y almacenamiento de credenciales.
-- `Sources/WaddleOn/App/`: ciclo de vida e integración.
+Instala la app en `/Applications/Waddle On.app`.
 
 ## Pruebas
-
-### Baile y bolas de nieve
-
-- **⌥ Option + D** inicia/detiene el baile clásico; también está disponible desde el menú 🐧.
-- En **Configuración → Movimiento**, activa o desactiva los lanzamientos automáticos al cursor y ajusta el intervalo aproximado entre **5 y 300 segundos**.
-- Por defecto se usa un intervalo de **20 segundos**, con una espera aleatoria entre **15 y 25 segundos** para cada lanzamiento.
-- La bola apunta al lugar donde estaba el cursor al iniciar el gesto. El personaje se detiene para bailar o lanzar y después retoma el seguimiento.
-- Las animaciones del personaje provienen del SWF original; la bola en vuelo y el impacto se dibujan de forma nativa.
 
 ```sh
 make test
 ```
 
-Las pruebas usan URLProtocol para verificar endpoints, historial, autenticación, errores sin secretos y cancelación; no realizan llamadas a proveedores reales. La guía de [verificación manual](docs/manual-testing.md) cubre clics, foco, pantallas, Spaces y configuración.
+Las pruebas verifican peticiones HTTP simuladas, configuración, animación direccional, trayectoria de nieve y renderizado matemático. La [guía manual](docs/manual-testing.md) cubre interacción visual, pantallas y Spaces; las pruebas automatizadas no requieren una API key real.
 
-## Plan de desarrollo
+## Detalles de implementación
 
-- [x] Crear el repositorio y definir la experiencia inicial.
-- [x] Localizar y validar los sprites y animaciones del pingüino.
-- [x] Elegir la tecnología y crear una ventana transparente en macOS.
-- [x] Mostrar el personaje y permitir arrastrarlo.
-- [x] Implementar la caminata hacia un destino.
-- [x] Añadir la barra flotante, historial y globos.
-- [x] Conectar la IA con configuración de proveedor y credenciales.
-- [ ] Añadir respuestas por streaming.
-- [ ] Verificar clics, foco, Spaces y pantallas completas.
-- [x] Implementar `make app`, `make run` y `make install`.
-- [x] Compilar, ejecutar pruebas y abrir la primera versión local.
-- [ ] Verificar conversación real con el proveedor elegido.
+- Swift, AppKit y SwiftUI, con WebKit para fórmulas.
+- `Character/` y `Resources/`: sprites y animación direccional, baile y lanzamiento.
+- `Desktop/`: ventanas transparentes, movimiento, acciones y atajo global.
+- `UI/`: chat, historial y configuración.
+- `AI/`: cliente compatible con `POST /chat/completions` y preferencias locales.
+- `App/`: ciclo de vida e integración.
 
-## Inspiración
-
-- **Club Penguin:** el personaje, la caminata y la experiencia visual del chat.
-- **Yukon y Wand:** referencias para el cliente y los recursos del juego.
-- **Focnotes:** presentación del repositorio y flujo de compilación e instalación de una app para Mac.
+Los recursos originales se recuperaron después de comprobar que las carpetas de medios locales de Wand y Yukon estaban vacías. Consulta [procedencia, extracción y limitaciones](docs/assets.md). El arte original conserva sus derechos; KaTeX incluye su licencia MIT. La bola en vuelo y el impacto son gráficos nativos. No se requiere Flash ni conexión para reproducir animaciones o renderizar fórmulas.
 
 <p align="center"><em>Waddle on!</em> 🐧</p>
