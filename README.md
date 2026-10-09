@@ -26,7 +26,7 @@ Waddle On es un compañero de escritorio para macOS con animaciones de Club Peng
 brew install --cask giarf/tap/waddle-on
 ```
 
-El cask verifica el SHA-256 de la descarga y elimina automáticamente la cuarentena de la aplicación instalada, siguiendo el mismo flujo de Focnotes.
+El cask verifica el SHA-256 de la descarga y elimina automáticamente la cuarentena de la aplicación instalada.
 
 ### DMG
 
