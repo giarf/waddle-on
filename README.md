@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/Swift-5.9-F05138?style=flat-square&logo=swift&logoColor=white" alt="Swift 5.9">
 </p>
 
-<p align="center"><img src="Support/AppIcon.png" width="180" alt="Icono de Waddle On"></p>
+<p align="center"><img src="docs/penguin-dance.gif" width="226" height="213" alt="Pingüino de Waddle On bailando"></p>
 
 Waddle On es un compañero de escritorio para macOS con animaciones de Club Penguin, chat con IA y globos de conversación. Camina detrás del cursor, baila y lanza bolas de nieve.
 
